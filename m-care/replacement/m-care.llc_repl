@@ -27,6 +27,31 @@ uint64_t line_sig[MAX_LLC_SETS][LLC_WAYS];
 #define maxSHCTR 7
 #define SHCT_SIZE (1<<14)
 
+//add PMC parameters
+
+uint32_t miss_count = 0;
+uint32_t larger;
+uint32_t smaller;
+uint32_t thresh = 350;
+uint32_t miss_period = LLC_WAY * LLC_SET / 2;
+
+
+uint32_t level_0_low = 0;
+uint32_t level_0_high = 49;
+uint32_t level_1_low = 50;
+uint32_t level_1_high = 99;
+uint32_t level_2_low = 100;
+uint32_t level_2_high = 149;
+uint32_t level_3_low = 150;
+uint32_t level_3_high = 199;
+uint32_t level_4_low = 200;
+uint32_t level_4_high = 249;
+uint32_t level_5_low = 250;
+uint32_t level_5_high = 299;
+uint32_t level_6_low = 300;
+uint32_t level_6_high = 349;
+uint32_t level_7_low = 350;
+
 
 
 class SHCT_class {
@@ -106,26 +131,79 @@ void CACHE::llc_update_replacement_state(uint32_t cpu, uint32_t set, uint32_t wa
 {
 
   uint32_t sig   = line_sig[set][way];
-    
-  int pmc_level = 0;
+
+    if(miss_count >= miss_period)
+    {
+        miss_count = 0;
+        if(larger < miss_period * (0.5/100))
+        {
+                uint32_t num = thresh / 7;
+                num = num - 10;
+                level_0_low = 0;
+                level_0_high = level_0_low + num - 1;
+                level_1_low = level_0_high + 1;
+                level_1_high = level_1_low + num - 1;
+                level_2_low = level_1_high + 1;
+                level_2_high = level_2_low + num - 1;
+                level_3_low = level_2_high + 1;
+                level_3_high = level_3_low + num - 1;
+                level_4_low = level_3_high + 1;
+                level_4_high = level_4_low + num - 1;
+                level_5_low = level_4_high + 1;
+                level_5_high = level_5_low + num - 1;
+                level_6_low = level_5_high + 1;
+                level_6_high = level_6_low + num - 1;
+                thresh = thresh - 70;
+                larger = 0;
+        }
+        else if (larger > miss_period * (5/100))
+        {
+                uint32_t num = thresh / 7;
+                num = num + 10;
+                level_0_low = 0;
+                level_0_high = level_0_low + num - 1;
+                level_1_low = level_0_high + 1;
+                level_1_high = level_1_low + num - 1;
+                level_2_low = level_1_high + 1;
+                level_2_high = level_2_low + num - 1;
+                level_3_low = level_2_high + 1;
+                level_3_high = level_3_low + num - 1;
+                level_4_low = level_3_high + 1;
+                level_4_high = level_4_low + num - 1;
+                level_5_low = level_4_high + 1;
+                level_5_high = level_5_low + num - 1;
+                level_6_low = level_5_high + 1;
+                level_6_high = level_6_low + num - 1;
+                thresh = thresh + 70;
+                larger = 0;
+        }
+    }
+
+    int pmc_level = 0;
 
     if(!hit)
     {
+        miss_count++;
+        if(block[set][way].pmc >= thresh)
+        {
+                larger++;
+        }
+
         if(type == WRITEBACK)
         {
                 pmc_level = 0;
         }
-        else if(0 <= block[set][way].pmc && block[set][way].pmc <= 119)
+        else if(level_0_low <= block[set][way].pmc && block[set][way].pmc <= level_0_high)
         {
                 pmc_level = 0;
         }
-        else if (120 <= block[set][way].pmc && block[set][way].pmc <= 239)
+        else if (level_1_low <= block[set][way].pmc && block[set][way].pmc <= level_3_high)
         {
                 pmc_level = 1;
         }
-        else if (240 <= block[set][way].pmc && block[set][way].pmc <= 359)
+        else if (level_4_low <= block[set][way].pmc && block[set][way].pmc <= level_6_high)
         {
-                pmc_level = 2;
+                pmc_level = 1;
         }
         else
         {
@@ -152,19 +230,22 @@ void CACHE::llc_update_replacement_state(uint32_t cpu, uint32_t set, uint32_t wa
             }
             else 
             {
-		uint32_t fill_cpu = fill_core[set][way];
-		if(SHCT[fill_cpu][sig].counter != 0)
+		line_rrpv[set][way] = 0;
+		if(ship_sample[set] == 1)
 		{
-			line_rrpv[set][way] = 0;
-		}
-		else
-		{
-			if (line_rrpv[set][way] > 0)
+			uint32_t fill_cpu = fill_core[set][way];
+			if(SHCT[fill_cpu][sig].counter != 0)
 			{
-				line_rrpv[set][way]--;
+				line_rrpv[set][way] = 0;
+			}
+			else
+			{
+				if (line_rrpv[set][way] > 0)
+				{
+					line_rrpv[set][way]--;
+				}
 			}
 		}
-
                 if( is_prefetch[set][way] )
                 {
                     line_rrpv[set][way] = maxRRPV;
