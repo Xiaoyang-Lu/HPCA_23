@@ -13,7 +13,7 @@
 #
 #define RRIP_OVERRIDE_PERC   0
 
-#define maxRRPV 3
+#define maxRRPV 7
 uint32_t line_rrpv[MAX_LLC_SETS][LLC_WAYS];
 uint32_t is_prefetch[MAX_LLC_SETS][LLC_WAYS];
 uint32_t fill_core[MAX_LLC_SETS][LLC_WAYS];
